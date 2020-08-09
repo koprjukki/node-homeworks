@@ -1,0 +1,33 @@
+{
+	"name": "node-basics",
+	"version": "1.0.0",
+	"description": "GoIT Courses HWs!",
+	"main": "app.js",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/koprjukki/node-homeworks.git"
+	},
+	"scripts": {
+		"start": "node api/app",
+		"dev": "nodemon api/app"
+	},
+	"author": "Illya Kobyliatskii <flazzygardner1234@gmail.com>",
+	"license": "ISC",
+	"bugs": {
+		"url": "https://github.com/koprjukki/node-homeworks/issues"
+	},
+	"homepage": "https://github.com/koprjukki/node-homeworks#readme",
+	"devDependencies": {
+		"nodemon": "^2.0.4"
+	},
+	"dependencies": {
+		"@hapi/joi": "^17.1.1",
+		"cors": "^2.8.5",
+		"dotenv": "^8.2.0",
+		"express": "^4.17.1",
+		"mongoose": "^5.9.28",
+		"morgan": "^1.10.0",
+		"shortid": "^2.2.15",
+		"yargs": "^15.4.1"
+	}
+}
