@@ -8,6 +8,8 @@ const { promises: fsPromise } = require("fs");
 const imagemin = require("imagemin");
 const imageminJpegtran = require("imagemin-jpegtran");
 const imageminPngquant = require("imagemin-pngquant");
+const { v4: uuidv4 } = require("uuid");
+const sgMail = require("@sendgrid/mail");
 
 class userController {
 	static userRegister = async (req, res, next) => {
@@ -20,23 +22,33 @@ class userController {
 
 			const avatarURL = await this.avatarGenerator(req.body.email);
 
-			const passwordHash = await bcrypt.hash(req.body.password, +"10");
+			const passwordHash = await bcrypt.hash(
+				req.body.password,
+				+process.env.BCRYPT_SALT_ROUNDS,
+			);
 
-			const userToAdd = { email: req.body.email, passwordHash, avatarURL };
+			const verificationToken = uuidv4();
+
+			this.sendVerificationEmail(req.body.email, verificationToken);
+
+			const userToAdd = {
+				email: req.body.email,
+				passwordHash,
+				avatarURL,
+				verificationToken,
+			};
 
 			const user = await userModel.create(userToAdd);
 			res.status(201).json({
 				id: user._id,
 				email: user.email,
 				subscription: user.subscription,
-
 				avatarURL: user.avatarURL,
 			});
 		} catch (err) {
 			next(err);
 		}
 	};
-
 
 	static avatarGenerator = async (email) => {
 		const catAvatar = Avatar.catBuilder(256);
@@ -52,6 +64,35 @@ class userController {
 		return `http://localhost:${process.env.PORT}/images/${avatarName}`;
 	};
 
+	static sendVerificationEmail = (email, verificationToken) => {
+		sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+		const msg = {
+			to: email,
+			from: process.env.EMAIL,
+			subject: "Verification",
+			text: `http://localhost:${process.env.PORT}/verify/${verificationToken}`,
+			html: `<p>Please, <a href=http://localhost:${process.env.PORT}/auth/verify/${verificationToken}>click</a> to verify your email</p>`,
+		};
+
+		sgMail.send(msg);
+	};
+
+	static verificateEmail = async (req, res, next) => {
+		try {
+			const user = await userModel.findOne(req.params);
+
+			if (!user) {
+				return res.status(404).send("User not found");
+			}
+
+			await userModel.findByIdAndUpdate(user._id, { verificationToken: null });
+
+			res.status(200).send("Your email verified");
+		} catch (err) {
+			next(err);
+		}
+	};
 	static validateUserObject = async (req, res, next) => {
 		try {
 			const schema = Joi.object({
@@ -95,7 +136,6 @@ class userController {
 
 			res.status(200).send({
 				token,
-
 				user: {
 					id: user.id,
 					email: user.email,
@@ -177,14 +217,12 @@ class userController {
 
 	static updateSubscription = async (req, res, next) => {
 		try {
-
 			await userModel.findByIdAndUpdate(req.id, { $set: req.body });
 
 			res.status(200).send({
 				id: req.id,
 				email: req.email,
 				subscription: req.body.subscription,
-
 				avatarUrl: req.avatarURL,
 			});
 		} catch (err) {

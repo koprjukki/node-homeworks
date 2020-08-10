@@ -1,5 +1,5 @@
 const Joi = require("@hapi/joi");
-const model = require("./contact.model");
+const contactModel = require("./contact.model");
 const {
 	Types: { ObjectId },
 } = require("mongoose");
@@ -18,10 +18,12 @@ class contactsController {
 				filterBySubscription = { subscription: req.query.sub };
 			}
 
-			const contactsList = await model.paginate(
+
+			const contactsList = await contactModel.paginate(
 				{ ...filterBySubscription },
 				options,
 			);
+
 			res.status(200).send(contactsList);
 		} catch (err) {
 			next(err);
@@ -30,7 +32,7 @@ class contactsController {
 
 	static postContact = async (req, res, next) => {
 		try {
-			const contactToAdd = await model.create(req.body);
+			const contactToAdd = await contactModel.create(req.body);
 
 			res.status(201).send(contactToAdd);
 		} catch (err) {
@@ -38,14 +40,15 @@ class contactsController {
 		}
 	};
 
-	static validateAddContact = async (req, res, next) => {
+	static validateNewContact = async (req, res, next) => {
 		try {
 			const schema = Joi.object({
 				name: Joi.string().required(),
-				phone: Joi.string().required(),
 				email: Joi.string().required(),
+				phone: Joi.string().required(),
 				subscription: Joi.string().required(),
 			});
+
 			const validation = await schema.validate(req.body);
 
 			if (validation.error) {
@@ -59,7 +62,7 @@ class contactsController {
 		}
 	};
 
-	static validateContactId = (req, res, next) => {
+	static validateId = (req, res, next) => {
 		const { id } = req.params;
 		if (!ObjectId.isValid(id)) {
 			res.status(404).send({ message: "wrong Id" });
@@ -70,10 +73,10 @@ class contactsController {
 	static getContactById = async (req, res, next) => {
 		try {
 			const { id } = req.params;
-			const findContact = await model.findById(id);
+			const targetContact = await contactModel.findById(id);
 
-			if (findContact) {
-				res.status(200).send(findContact);
+			if (targetContact) {
+				res.status(200).send(targetContact);
 			} else {
 				res.status(404).send({ message: "Not found" });
 			}
@@ -85,9 +88,10 @@ class contactsController {
 	static removeContact = async (req, res, next) => {
 		try {
 			const { id } = req.params;
-			const findContact = await model.findByIdAndRemove(id);
 
-			if (findContact) {
+			const targetContact = await contactModel.findByIdAndRemove(id);
+
+			if (targetContact) {
 				res.status(200).send({ message: "contact deleted" });
 			} else {
 				res.status(404).send({ message: "Not found" });
@@ -100,12 +104,13 @@ class contactsController {
 	static updateContact = async (req, res, next) => {
 		try {
 			const { id } = req.params;
-			const findContact = await model.findByIdAndUpdate(id, req.body, {
+
+			const targetContact = await contactModel.findByIdAndUpdate(id, req.body, {
 				new: true,
 			});
 
-			if (findContact) {
-				res.status(200).send(findContact);
+			if (targetContact) {
+				res.status(200).send(targetContact);
 			} else {
 				res.status(404).send({ message: "Not found" });
 			}
@@ -120,7 +125,9 @@ class contactsController {
 				name: Joi.string(),
 				email: Joi.string(),
 				phone: Joi.string(),
+				subscription: Joi.string(),
 			});
+
 			const validation = await schema.validate(req.body);
 
 			if (validation.error) {
