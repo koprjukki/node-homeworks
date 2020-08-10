@@ -1,33 +1,55 @@
-const model = require("./user.model");
+const userModel = require("./user.model");
+const path = require("path");
+const bcrypt = require("bcrypt");
 const Joi = require("@hapi/joi");
 const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
+const Avatar = require("avatar-builder");
+const { promises: fsPromise } = require("fs");
+const imagemin = require("imagemin");
+const imageminJpegtran = require("imagemin-jpegtran");
+const imageminPngquant = require("imagemin-pngquant");
 
 class userController {
-	constructor() {
-		this.costFactor = 4;
-	}
-
 	static userRegister = async (req, res, next) => {
 		try {
-			const existUser = await model.findOne({ email: req.body.email });
+			const existUser = await userModel.findOne({ email: req.body.email });
+
 			if (existUser) {
 				return res.status(409).send({ message: "Email in use" });
 			}
 
+			const avatarURL = await this.avatarGenerator(req.body.email);
+
 			const passwordHash = await bcrypt.hash(req.body.password, +"10");
 
-			const addUser = { email: req.body.email, passwordHash };
-			const user = await model.create(addUser);
+			const userToAdd = { email: req.body.email, passwordHash, avatarURL };
 
+			const user = await userModel.create(userToAdd);
 			res.status(201).json({
 				id: user._id,
 				email: user.email,
 				subscription: user.subscription,
+
+				avatarURL: user.avatarURL,
 			});
 		} catch (err) {
 			next(err);
 		}
+	};
+
+
+	static avatarGenerator = async (email) => {
+		const catAvatar = Avatar.catBuilder(256);
+
+		const avatarPath = path.join(__dirname, "../public/images");
+
+		const avatarName = Date.now() + ".png";
+
+		const avatar = await catAvatar.create(email);
+
+		await fsPromise.writeFile(avatarPath + "/" + avatarName, avatar);
+
+		return `http://localhost:${process.env.PORT}/images/${avatarName}`;
 	};
 
 	static validateUserObject = async (req, res, next) => {
@@ -51,32 +73,57 @@ class userController {
 
 	static userLogin = async (req, res, next) => {
 		try {
-			const user = await model.findOne({ email: req.body.email });
+			const { email, password } = req.body;
+
+			const user = await userModel.findOne({ email });
+
+			if (!user) {
+				return res.status(401).send({ message: "Email or password is wrong" });
+			}
+
+			const isPassValid = await bcrypt.compare(password, user.passwordHash);
+
+			if (!isPassValid) {
+				return res.status(401).send({ message: "Email or password is wrong" });
+			}
+
 			const token = await jwt.sign({ id: user._id }, process.env.JWT_SECRET);
 
-			await model.findByIdAndUpdate(user._id, {
+			await userModel.findByIdAndUpdate(user._id, {
 				token,
 			});
 
 			res.status(200).send({
 				token,
-				user: { email: user.email, subscription: user.subscription },
+
+				user: {
+					id: user.id,
+					email: user.email,
+					subscription: user.subscription,
+					avatarUrl: user.avatarURL,
+				},
 			});
 		} catch (err) {
 			next(err);
 		}
 	};
 
-	static validatePassword = async (req, res, next) => {
-		const { email, password } = req.body;
-		const user = await model.findOne({ email });
-		const isValid = await bcrypt.compare(password, user.passwordHash);
+	static validateUser = async (email, password) => {
+		const user = await userModel.findOne({ email });
 
-		if (!isValid) {
+		if (!user) {
 			return res.status(401).send({ message: "Email or password is wrong" });
 		}
 
-		next();
+		const isPassValid = await bcrypt.compare(password, user.passwordHash);
+
+		if (!isPassValid) {
+			return res.status(401).send({ message: "Email or password is wrong" });
+		}
+
+		req.body = user;
+
+		return true;
 	};
 
 	static validateToken = async (req, res, next) => {
@@ -85,7 +132,9 @@ class userController {
 			const token = authorizationHeader.replace("Bearer ", "");
 
 			const verifyToken = await jwt.verify(token, process.env.JWT_SECRET).id;
-			const user = await model.findById(verifyToken);
+
+			const user = await userModel.findById(verifyToken);
+
 			if (!user || !user.token) {
 				return res.status(401).json({ message: "Not authorized" });
 			}
@@ -93,6 +142,8 @@ class userController {
 			req.id = user._id;
 			req.email = user.email;
 			req.subscription = user.subscription;
+			req.avatarURL = user.avatarURL;
+
 			next();
 		} catch (err) {
 			next(err);
@@ -101,7 +152,7 @@ class userController {
 
 	static userLogout = async (req, res, next) => {
 		try {
-			await model.findByIdAndUpdate(req.id, { token: null });
+			await userModel.findByIdAndUpdate(req.id, { token: null });
 
 			res.status(209).send();
 		} catch (err) {
@@ -111,9 +162,14 @@ class userController {
 
 	static getCurrentUser = async (req, res, next) => {
 		try {
-			res
-				.status(200)
-				.send({ user: { email: req.email, subscription: req.subscription } });
+			res.status(200).send({
+				user: {
+					id: req.id,
+					email: req.email,
+					subscription: req.subscription,
+					avatarUrl: req.avatarURL,
+				},
+			});
 		} catch (err) {
 			next(err);
 		}
@@ -121,18 +177,65 @@ class userController {
 
 	static updateSubscription = async (req, res, next) => {
 		try {
-			await model.findByIdAndUpdate(req.id, {
-				subscription: req.body.subscription,
-			});
+
+			await userModel.findByIdAndUpdate(req.id, { $set: req.body });
 
 			res.status(200).send({
 				id: req.id,
 				email: req.email,
 				subscription: req.body.subscription,
+
+				avatarUrl: req.avatarURL,
 			});
 		} catch (err) {
 			next(err);
 		}
+	};
+
+	static validateUpdateSubscription = async (req, res, next) => {
+		try {
+			const schema = Joi.object({
+				subscription: Joi.string().required().valid("free", "pro", "premium"),
+			});
+
+			const validate = schema.validate(req.body);
+
+			if (validate.error) {
+				return res.status(400).send(validate.error.details[0].message);
+			}
+
+			next();
+		} catch (err) {
+			next(err);
+		}
+	};
+
+	static updateAvatar = async (req, res, next) => {
+		try {
+			await this.minifyImage(req.file.path);
+
+			const path = `http://localhost:${process.env.PORT}/images/${req.file.filename}`;
+
+			await userModel.findByIdAndUpdate(req.id, { $set: { avatarURL: path } });
+
+			res.status(200).send({ avatarURL: path });
+		} catch (err) {
+			next(err);
+		}
+	};
+
+	static minifyImage = async (tmpFilePath) => {
+		await imagemin([tmpFilePath], {
+			destination: "api/public/images",
+			plugins: [
+				imageminJpegtran(),
+				imageminPngquant({
+					quality: [0.6, 0.8],
+				}),
+			],
+		});
+
+		await fsPromise.unlink(tmpFilePath);
 	};
 }
 

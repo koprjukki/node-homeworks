@@ -13,6 +13,7 @@ class contactsController {
 				sort: { name: 1 },
 			};
 			let filterBySubscription = null;
+
 			if (req.query && req.query.sub) {
 				filterBySubscription = { subscription: req.query.sub };
 			}
@@ -43,6 +44,7 @@ class contactsController {
 				name: Joi.string().required(),
 				phone: Joi.string().required(),
 				email: Joi.string().required(),
+				subscription: Joi.string().required(),
 			});
 			const validation = await schema.validate(req.body);
 
