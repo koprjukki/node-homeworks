@@ -1,12 +1,15 @@
 const mongoose = require("mongoose");
 const { Schema } = require("mongoose");
+const mongoosePaginate = require("mongoose-paginate-v2");
 
-const contactSchema = new Schema({
+const schema = new Schema({
 	name: { type: String, required: true },
-	email: { type: String, required: true },
 	phone: { type: String, required: true },
+	email: { type: String, required: true },
 });
 
-const contactModel = mongoose.model("Contact", contactSchema);
+schema.plugin(mongoosePaginate);
+
+const contactModel = mongoose.model("contact", schema);
 
 module.exports = contactModel;

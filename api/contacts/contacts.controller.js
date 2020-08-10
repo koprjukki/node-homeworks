@@ -1,6 +1,5 @@
 const Joi = require("@hapi/joi");
-const contactModel = require("./contact.model");
-
+const model = require("./contact.model");
 const {
 	Types: { ObjectId },
 } = require("mongoose");
@@ -8,7 +7,20 @@ const {
 class contactsController {
 	static getContactsList = async (req, res, next) => {
 		try {
-			const contactsList = await contactModel.find();
+			const options = {
+				page: (req.query && req.query.page) || "1",
+				limit: (req.query && req.query.limit) || "10",
+				sort: { name: 1 },
+			};
+			let filterBySubscription = null;
+			if (req.query && req.query.sub) {
+				filterBySubscription = { subscription: req.query.sub };
+			}
+
+			const contactsList = await model.paginate(
+				{ ...filterBySubscription },
+				options,
+			);
 			res.status(200).send(contactsList);
 		} catch (err) {
 			next(err);
@@ -17,7 +29,7 @@ class contactsController {
 
 	static postContact = async (req, res, next) => {
 		try {
-			const contactToAdd = await contactModel.create(req.body);
+			const contactToAdd = await model.create(req.body);
 
 			res.status(201).send(contactToAdd);
 		} catch (err) {
@@ -25,14 +37,13 @@ class contactsController {
 		}
 	};
 
-	static validateAddedContact = async (req, res, next) => {
+	static validateAddContact = async (req, res, next) => {
 		try {
 			const schema = Joi.object({
 				name: Joi.string().required(),
-				email: Joi.string().required(),
 				phone: Joi.string().required(),
+				email: Joi.string().required(),
 			});
-
 			const validation = await schema.validate(req.body);
 
 			if (validation.error) {
@@ -40,29 +51,42 @@ class contactsController {
 					message: `missing required ${validation.error.details[0].path[0]}`,
 				});
 			}
-
 			next();
 		} catch (err) {
 			next(err);
 		}
 	};
 
-	static validateId = (req, res, next) => {
+	static validateContactId = (req, res, next) => {
 		const { id } = req.params;
 		if (!ObjectId.isValid(id)) {
 			res.status(404).send({ message: "wrong Id" });
 		}
-
 		next();
 	};
 
 	static getContactById = async (req, res, next) => {
 		try {
 			const { id } = req.params;
-			const targetContact = await contactModel.findById(id);
+			const findContact = await model.findById(id);
 
-			if (targetContact) {
-				res.status(200).send(targetContact);
+			if (findContact) {
+				res.status(200).send(findContact);
+			} else {
+				res.status(404).send({ message: "Not found" });
+			}
+		} catch (err) {
+			next(err);
+		}
+	};
+
+	static removeContact = async (req, res, next) => {
+		try {
+			const { id } = req.params;
+			const findContact = await model.findByIdAndRemove(id);
+
+			if (findContact) {
+				res.status(200).send({ message: "contact deleted" });
 			} else {
 				res.status(404).send({ message: "Not found" });
 			}
@@ -74,15 +98,12 @@ class contactsController {
 	static updateContact = async (req, res, next) => {
 		try {
 			const { id } = req.params;
-
-			console.log(res.body);
-
-			const targetContact = await contactModel.findByIdAndUpdate(id, req.body, {
+			const findContact = await model.findByIdAndUpdate(id, req.body, {
 				new: true,
 			});
 
-			if (targetContact) {
-				res.status(200).send(targetContact);
+			if (findContact) {
+				res.status(200).send(findContact);
 			} else {
 				res.status(404).send({ message: "Not found" });
 			}
@@ -98,7 +119,6 @@ class contactsController {
 				email: Joi.string(),
 				phone: Joi.string(),
 			});
-
 			const validation = await schema.validate(req.body);
 
 			if (validation.error) {
@@ -106,24 +126,7 @@ class contactsController {
 					message: "missing fields",
 				});
 			}
-
 			next();
-		} catch (err) {
-			next(err);
-		}
-	};
-
-	static removeContact = async (req, res, next) => {
-		try {
-			const { id } = req.params;
-
-			const targetContact = await contactModel.findByIdAndRemove(id);
-
-			if (targetContact) {
-				res.status(200).send({ message: "contact deleted" });
-			} else {
-				res.status(404).send({ message: "Not found" });
-			}
 		} catch (err) {
 			next(err);
 		}
