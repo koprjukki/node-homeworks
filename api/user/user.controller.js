@@ -93,7 +93,6 @@ class userController {
 			next(err);
 		}
 	};
-
 	static validateUserObject = async (req, res, next) => {
 		try {
 			const schema = Joi.object({

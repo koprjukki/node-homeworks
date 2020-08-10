@@ -12,12 +12,12 @@ class contactsController {
 				limit: (req.query && req.query.limit) || "10",
 				sort: { name: 1 },
 			};
-
 			let filterBySubscription = null;
 
 			if (req.query && req.query.sub) {
 				filterBySubscription = { subscription: req.query.sub };
 			}
+
 
 			const contactsList = await contactModel.paginate(
 				{ ...filterBySubscription },
@@ -56,7 +56,6 @@ class contactsController {
 					message: `missing required ${validation.error.details[0].path[0]}`,
 				});
 			}
-
 			next();
 		} catch (err) {
 			next(err);
@@ -68,7 +67,6 @@ class contactsController {
 		if (!ObjectId.isValid(id)) {
 			res.status(404).send({ message: "wrong Id" });
 		}
-
 		next();
 	};
 
@@ -137,7 +135,6 @@ class contactsController {
 					message: "missing fields",
 				});
 			}
-
 			next();
 		} catch (err) {
 			next(err);
