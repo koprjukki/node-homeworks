@@ -16,7 +16,6 @@ app.use(express.static("api/public"));
 app.use(json());
 app.use(cors());
 app.use(morgan());
-
 app.use("/api/contacts", contactsRouter);
 app.use("/", userRouter);
 
@@ -34,6 +33,7 @@ const dbConnect = async () => {
 		process.exit(1);
 	}
 };
+
 
 const startServer = async () => {
 	await dbConnect();

@@ -29,12 +29,14 @@ class userController {
 				id: user._id,
 				email: user.email,
 				subscription: user.subscription,
+
 				avatarURL: user.avatarURL,
 			});
 		} catch (err) {
 			next(err);
 		}
 	};
+
 
 	static avatarGenerator = async (email) => {
 		const catAvatar = Avatar.catBuilder(256);
@@ -93,6 +95,7 @@ class userController {
 
 			res.status(200).send({
 				token,
+
 				user: {
 					id: user.id,
 					email: user.email,
@@ -174,12 +177,14 @@ class userController {
 
 	static updateSubscription = async (req, res, next) => {
 		try {
+
 			await userModel.findByIdAndUpdate(req.id, { $set: req.body });
 
 			res.status(200).send({
 				id: req.id,
 				email: req.email,
 				subscription: req.body.subscription,
+
 				avatarUrl: req.avatarURL,
 			});
 		} catch (err) {
